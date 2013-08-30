@@ -1,24 +1,7 @@
 -------------------------------------------------------------------------------
 -- SHA-1 secure hash computation, and HMAC-SHA1 signature computation in Lua (5.1)
---
--- This is a cleanup of Eike Decker - http://cube3d.de/uploads/Main/sha1.txt,
--- which was based on an initial work by Jeffrey Friedl - http://regex.info/blog/lua/sha1
---
--- The implemented algorithm is http://www.itl.nist.gov/fipspubs/fip180-1.htm
---
--- License: MIT
---
--- Usage:
---   local sha1 = require 'sha1'
---
---   local hash_as_hex   = sha1(message)            -- returns a hex string
---   local hash_as_data  = sha1.binary(message)     -- returns raw bytes
---
---   local hmac_as_hex   = sha1.hmac(key, message)        -- hex string
---   local hmac_as_data  = sha1.hmac_binary(key, message) -- raw bytes
 -------------------------------------------------------------------------------
 
--- set this to false if you don't want to build several 64k sized tables when
 -- loading this file (takes a while but grants a boost of factor 13)
 local PRELOAD_CACHE = true
 
@@ -258,9 +241,9 @@ local function sha1_binary(msg)
   return hex_to_binary(sha1(msg))
 end
 
-local function hmac_sha1(key, text)
-  assert(type(key)  == 'string', "key passed to hmac_sha1 should be a string")
-  assert(type(text) == 'string', "text passed to hmac_sha1 should be a string")
+local function sha1_hmac(key, text)
+  assert(type(key)  == 'string', "key passed to sha1.hmac should be a string")
+  assert(type(text) == 'string', "text passed to sha1.hmac should be a string")
 
   if #key > BLOCK_SIZE then
     key = sha1_binary(key)
@@ -272,15 +255,15 @@ local function hmac_sha1(key, text)
   return sha1(key_xord_with_0x5c .. sha1_binary(key_xord_with_0x36 .. text))
 end
 
-local function hmac_sha1_binary(key, text)
-  return hex_to_binary(hmac_sha1(key, text))
+local function sha1_hmac_binary(key, text)
+  return hex_to_binary(sha1_hmac(key, text))
 end
 
 return setmetatable({
-  sha1 = sha1,
-  binary = sha1_binary,
-  hmac = hmac_sha1,
-  hmac_binary = hmac_sha1_binary
+  sha1        = sha1,
+  binary      = sha1_binary,
+  hmac        = sha1_hmac,
+  hmac_binary = sha1_hmac_binary
 }, {
   __call = function(_,msg) return sha1(msg) end
 })
