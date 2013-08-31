@@ -1,6 +1,9 @@
--------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------
 -- SHA-1 secure hash computation, and HMAC-SHA1 signature computation in Lua (5.1)
--------------------------------------------------------------------------------
+--
+-- Based on code originally by Jeffrey Friedl (http://regex.info/blog/lua/sha1)
+-- And modified by Eike Decker - (http://cube3d.de/uploads/Main/sha1.txt)
+-----------------------------------------------------------------------------------
 
 -- loading this file (takes a while but grants a boost of factor 13)
 local PRELOAD_CACHE = true
