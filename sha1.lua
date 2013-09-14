@@ -1,8 +1,37 @@
------------------------------------------------------------------------------------
--- SHA-1 secure hash computation, and HMAC-SHA1 signature computation in Lua (5.1)
---
--- Based on code originally by Jeffrey Friedl (http://regex.info/blog/lua/sha1)
--- And modified by Eike Decker - (http://cube3d.de/uploads/Main/sha1.txt)
+local sha1 = {
+  _VERSION     = "sha.lua 0.5.0",
+  _URL         = "https://github.com/kikito/sha.lua",
+  _DESCRIPTION = [[
+   SHA-1 secure hash computation, and HMAC-SHA1 signature computation in Lua (5.1)
+   Based on code originally by Jeffrey Friedl (http://regex.info/blog/lua/sha1)
+   And modified by Eike Decker - (http://cube3d.de/uploads/Main/sha1.txt)
+  ]],
+  _LICENSE = [[
+    MIT LICENSE
+
+    Copyright (c) 2013 Enrique García Cota + Eike Decker + Jeffrey Friedl
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so, subject to
+    the following conditions:
+
+    The above copyright notice and this permission notice shall be included
+    in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  ]]
+}
+
 -----------------------------------------------------------------------------------
 
 -- loading this file (takes a while but grants a boost of factor 13)
@@ -157,10 +186,10 @@ for i=0,0xff do
   xor_with_0x36[char(i)] = char(bxor(i,0x36))
 end
 
----------------------------------------------------------------------------------
+-----------------------------------------------------------------------------
 
 -- calculating the SHA1 for some text
-local function sha1(msg)
+function sha1.sha1(msg)
   local H0,H1,H2,H3,H4 = 0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0
   local msg_len_in_bits = #msg * 8
 
@@ -240,33 +269,29 @@ local function sha1(msg)
   return f(H0) .. f(H1) .. f(H2) .. f(H3) .. f(H4)
 end
 
-local function sha1_binary(msg)
-  return hex_to_binary(sha1(msg))
+
+function sha1.binary(msg)
+  return hex_to_binary(sha1.sha1(msg))
 end
 
-local function sha1_hmac(key, text)
+function sha1.hmac(key, text)
   assert(type(key)  == 'string', "key passed to sha1.hmac should be a string")
   assert(type(text) == 'string', "text passed to sha1.hmac should be a string")
 
   if #key > BLOCK_SIZE then
-    key = sha1_binary(key)
+    key = sha1.binary(key)
   end
 
   local key_xord_with_0x36 = key:gsub('.', xor_with_0x36) .. string.rep(string.char(0x36), BLOCK_SIZE - #key)
   local key_xord_with_0x5c = key:gsub('.', xor_with_0x5c) .. string.rep(string.char(0x5c), BLOCK_SIZE - #key)
 
-  return sha1(key_xord_with_0x5c .. sha1_binary(key_xord_with_0x36 .. text))
+  return sha1.sha1(key_xord_with_0x5c .. sha1.binary(key_xord_with_0x36 .. text))
 end
 
-local function sha1_hmac_binary(key, text)
-  return hex_to_binary(sha1_hmac(key, text))
+function sha1.hmac_binary(key, text)
+  return hex_to_binary(sha1.hmac(key, text))
 end
 
-return setmetatable({
-  sha1        = sha1,
-  binary      = sha1_binary,
-  hmac        = sha1_hmac,
-  hmac_binary = sha1_hmac_binary
-}, {
-  __call = function(_,msg) return sha1(msg) end
-})
+setmetatable(sha1, {__call = function(_,msg) return sha1.sha1(msg) end })
+
+return sha1
