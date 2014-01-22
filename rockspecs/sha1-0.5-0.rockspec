@@ -2,7 +2,7 @@ package = "sha1"
 version = "0.5-0"
 source = {
   url = "https://github.com/kikito/sha1.lua/archive/v0.5.0.tar.gz",
-  dir = "sha1-0.5.0"
+  dir = "sha1.lua-0.5.0"
 }
 description = {
    summary  = "SHA-1 secure hash computation, and HMAC-SHA1 signature computation in Lua (5.1)",
