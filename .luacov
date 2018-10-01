@@ -1,4 +1,4 @@
 modules = {
    sha1 = "src/sha1/init.lua",
-   ["sha1.*"] = "src/sha1"
+   ["sha1.*"] = "src"
 }
