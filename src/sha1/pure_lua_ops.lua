@@ -13,41 +13,75 @@ function ops.uint32_lrot(a, bits)
    return (lower_bits * power) + ((a - lower_bits) / inv_power)
 end
 
-local function make_byte_op_cache(bit_op)
-   local prev_cache = {[0] = bit_op(0, 0), bit_op(0, 1), bit_op(1, 0), bit_op(1, 1)}
-   local prev_power = 2
+-- Build caches for bitwise `and` and `xor` over bytes to speed up uint32 operations.
+-- Building the cache by simply applying these operators over all pairs is too slow and
+-- duplicates a lot of work over different bits of inputs.
+-- Instead, when building a cache over bytes, for each pair of bytes split both arguments
+-- into two 4-bit numbers, calculate values over these two halves, then join the results into a byte again.
+-- While there are 256 * 256 = 65536 pairs of bytes, there are only 16 * 16 = 256 pairs
+-- of 4-bit numbers, so that building an 8-bit cache given a 4-bit cache is rather efficient.
+-- The same logic is applied recursively to make a 4-bit cache from a 2-bit cache and a 2-bit
+-- cache from a 1-bit cache, which is calculated given the 1-bit version of the operator.
 
-   for _ = 1, 3 do
-      local cache = {}
-      local power = prev_power * prev_power
+-- Returns a cache containing all values of a bitwise operator over numbers with given number of bits,
+-- given an operator over single bits.
+-- Value of `op(a, b)` is stored in `cache[a * (2 ^ bits) + b]`.
+local function make_op_cache(bit_op, bits)
+   if bits == 1 then
+      return {[0] = bit_op(0, 0), bit_op(0, 1), bit_op(1, 0), bit_op(1, 1)}
+   end
 
-      for a1 = 0, prev_power - 1 do
-         local a1_prev_power = a1 * prev_power
+   local half_bits = bits / 2
+   local size = 2 ^ bits
+   local half_size = 2 ^ half_bits
+   local half_cache = make_op_cache(bit_op, half_bits)
 
-         for a2 = 0, prev_power - 1 do
-            local a2_power = a2 * prev_power
-            local a_power = (a1_prev_power + a2) * power
+   local cache = {}
 
-            for b1 = 0, prev_power - 1 do
-               local a_power_plus_b1_prev_power = a_power + b1 * prev_power
-               local r1_prev_power = prev_cache[a1_prev_power + b1] * prev_power
+   -- The implementation used is an optimized version of the following reference one,
+   -- with intermediate calculations reused and moved to the outermost loop possible.
+   -- It's possible to reorder the loops and move the calculation of one of the
+   -- half-results one level up, but then the cache is not filled in a proper array order
+   -- and its access performance suffers.
 
-               for b2 = 0, prev_power - 1 do
-                  cache[a_power_plus_b1_prev_power + b2] = r1_prev_power + prev_cache[a2_power + b2]
-               end
+   -- for a1 = 0, half_size - 1 do
+   --    for a2 = 0, half_size - 1 do
+   --       for b1 = 0, half_size - 1 do
+   --          for b2 = 0, half_size - 1 do
+   --             local a = a1 * half_size + a2
+   --             local b = b1 * half_size + b2
+   --             local v1 = half_cache[a1 * half_size + b1]
+   --             local v2 = half_cache[a2 * half_size + b2]
+   --             local v = v1 * half_size + v2
+   --             cache[a * size + b]
+   --          end
+   --       end
+   --    end
+   -- end
+
+   for a1 = 0, half_size - 1 do
+      local a1_half_size = a1 * half_size
+
+      for a2 = 0, half_size - 1 do
+         local a2_size = a2 * half_size
+         local a_size = (a1_half_size + a2) * size
+
+         for b1 = 0, half_size - 1 do
+            local a_size_plus_b1_half_size = a_size + b1 * half_size
+            local v1_half_size = half_cache[a1_half_size + b1] * half_size
+
+            for b2 = 0, half_size - 1 do
+               cache[a_size_plus_b1_half_size + b2] = v1_half_size + half_cache[a2_size + b2]
             end
          end
       end
-
-      prev_cache = cache
-      prev_power = power
    end
 
-   return prev_cache
+   return cache
 end
 
-local byte_and_cache = make_byte_op_cache(function(a, b) return a * b end)
-local byte_xor_cache = make_byte_op_cache(function(a, b) return a == b and 0 or 1 end)
+local byte_and_cache = make_op_cache(function(a, b) return a * b end, 8)
+local byte_xor_cache = make_op_cache(function(a, b) return a == b and 0 or 1 end, 8)
 
 function ops.byte_xor(a, b)
    return byte_xor_cache[a * 256 + b]
