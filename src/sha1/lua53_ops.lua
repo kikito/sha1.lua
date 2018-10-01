@@ -16,14 +16,13 @@ function ops.uint32_xor_4(a, b, c, d)
    return a ~ b ~ c ~ d
 end
 
--- (B AND C) OR ((NOT B) AND D)
-function ops.loop_op_1(B, C, D)
-   return (B & C) | (~B & D)
+function ops.uint32_ternary(a, b, c)
+   return (a & b) | (~a & c)
 end
 
--- (B AND C) OR (B AND D) OR (C AND D) = (B AND (C OR D)) OR (C AND D)
-function ops.loop_op_3(B, C, D)
-   return (B & (C | D)) | (C & D)
+function ops.uint32_majority(a, b, c)
+   -- One less bitwise operation than (a & b) | (a & c) | (b & c).
+   return (a & (b | c)) | (b & c)
 end
 
 return ops

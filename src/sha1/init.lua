@@ -1,3 +1,5 @@
+local common = require "sha1.common"
+
 local sha1 = {
   _VERSION     = "sha.lua 0.5.0",
   _URL         = "https://github.com/kikito/sha.lua",
@@ -49,109 +51,113 @@ local uint32_lrot = ops.uint32_lrot
 local byte_xor = ops.byte_xor
 local uint32_xor_3 = ops.uint32_xor_3
 local uint32_xor_4 = ops.uint32_xor_4
-local loop_op_1 = ops.loop_op_1
-local loop_op_3 = ops.loop_op_3
+local uint32_ternary = ops.uint32_ternary
+local uint32_majority = ops.uint32_majority
 
--- local storing of global functions (minor speedup)
-local modf = math.modf
-local char,format,rep = string.char,string.format,string.rep
+local bytes_to_uint32 = common.bytes_to_uint32
+local uint32_to_bytes = common.uint32_to_bytes
 
-local function bytes_to_uint32(a, b, c, d)
-   return a * 0x1000000 + b * 0x10000 + c * 0x100 + d
-end
+local sbyte = string.byte
+local schar = string.char
+local sformat = string.format
+local srep = string.rep
 
 local function hex_to_binary(hex)
-   return hex:gsub('..', function(hexval)
-      return string.char(tonumber(hexval, 16))
-   end)
+   return (hex:gsub("..", function(hexval)
+      return schar(tonumber(hexval, 16))
+   end))
 end
 
------------------------------------------------------------------------------
+-- Calculates SHA1 for a string, returns it encoded as 40 hexadecimal digits.
+function sha1.sha1(str)
+   -- Input preprocessing.
+   -- First, append a `1` bit and seven `0` bits.
+   local first_append = schar(0x80)
 
--- calculating the SHA1 for some text
-function sha1.sha1(msg)
-   local H0,H1,H2,H3,H4 = 0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0
-   local msg_len_in_bits = #msg * 8
+   -- Next, append some zero bytes to make the length of the final message a multiple of 64.
+   -- Eight more bytes will be added next.
+   local non_zero_message_bytes = #str + 1 + 8
+   local second_append = srep(schar(0), -non_zero_message_bytes % 64)
 
-   local first_append = char(0x80) -- append a '1' bit plus seven '0' bits
+   -- Finally, append the length of the original message in bits as a 64-bit number.
+   -- Assume that it fits into the lower 32 bits.
+   local third_append = schar(0, 0, 0, 0, uint32_to_bytes(#str * 8))
 
-   local non_zero_message_bytes = #msg +1 +8 -- the +1 is the appended bit 1, the +8 are for the final appended length
-   local current_mod = non_zero_message_bytes % 64
-   local second_append = current_mod>0 and rep(char(0), 64 - current_mod) or ""
+   str = str .. first_append .. second_append .. third_append
+   assert(#str % 64 == 0)
 
-   -- now to append the length as a 64-bit number.
-   local B1, R1 = modf(msg_len_in_bits  / 0x01000000)
-   local B2, R2 = modf( 0x01000000 * R1 / 0x00010000)
-   local B3, R3 = modf( 0x00010000 * R2 / 0x00000100)
-   local B4    = 0x00000100 * R3
+   -- Initialize hash value.
+   local h0 = 0x67452301
+   local h1 = 0xEFCDAB89
+   local h2 = 0x98BADCFE
+   local h3 = 0x10325476
+   local h4 = 0xC3D2E1F0
 
-   local L64 = char( 0) .. char( 0) .. char( 0) .. char( 0) -- high 32 bits
-      .. char(B1) .. char(B2) .. char(B3) .. char(B4) --  low 32 bits
+   local w = {}
 
-   msg = msg .. first_append .. second_append .. L64
+   -- Process the input in successive 64-byte chunks.
+   for chunk_start = 1, #str, 64 do
+      -- Load the chunk into W[0..15] as uint32 numbers.
+      local uint32_start = chunk_start
 
-   assert(#msg % 64 == 0)
-
-   local W = {}
-
-   for start = 1, #msg, 64 do
-      --
-      -- break chunk up into W[0] through W[15]
-      --
-
-      for t = 0, 15 do
-         W[t] = bytes_to_uint32(msg:byte(start, start + 3))
-         start = start + 4
+      for i = 0, 15 do
+         w[i] = bytes_to_uint32(sbyte(str, uint32_start, uint32_start + 3))
+         uint32_start = uint32_start + 4
       end
 
-      --
-      -- build W[16] through W[79]
-      --
-      for t = 16, 79 do
-         -- For t = 16 to 79 let Wt = S1(Wt-3 XOR Wt-8 XOR Wt-14 XOR Wt-16).
-         W[t] = uint32_lrot(uint32_xor_4(W[t-3], W[t-8], W[t-14], W[t-16]), 1)
+      -- Extend the input vector.
+      for i = 16, 79 do
+         -- For i = 16 to 79 let Wt = S1(Wt-3 XOR Wt-8 XOR Wt-14 XOR Wt-16).
+         w[i] = uint32_lrot(uint32_xor_4(w[i - 3], w[i - 8], w[i - 14], w[i - 16]), 1)
       end
 
-      local A, B, C, D, E = H0, H1, H2, H3, H4
+      -- Initialize hash value for this chunk.
+      local a = h0
+      local b = h1
+      local c = h2
+      local d = h3
+      local e = h4
 
-      for t = 0, 79 do
-         local f, K
+      -- Main loop.
+      for i = 0, 79 do
+         local f
+         local k
 
-         if t <= 19 then
-            -- (B AND C) OR ((NOT B) AND D)
-            f = loop_op_1(B, C, D)
-            --f = uint32_or(uint32_and(B, C), uint32_and(uint32_not(B), D))
-            K = 0x5A827999
-         elseif t <= 39 then
-            -- B XOR C XOR D
-            f = uint32_xor_3(B, C, D)
-            K = 0x6ED9EBA1
-         elseif t <= 59 then
-            -- (B AND C) OR (B AND D) OR (C AND D)
-            f = loop_op_3(B, C, D)
-            K = 0x8F1BBCDC
+         if i <= 19 then
+            f = uint32_ternary(b, c, d)
+            k = 0x5A827999
+         elseif i <= 39 then
+            f = uint32_xor_3(b, c, d)
+            k = 0x6ED9EBA1
+         elseif i <= 59 then
+            f = uint32_majority(b, c, d)
+            k = 0x8F1BBCDC
          else
-            -- B XOR C XOR D
-            f = uint32_xor_3(B, C, D)
-            K = 0xCA62C1D6
+            f = uint32_xor_3(b, c, d)
+            k = 0xCA62C1D6
          end
 
-         -- TEMP = S5(A) + ft(B,C,D) + E + Wt + Kt;
-         A,B,C,D,E = (uint32_lrot(A, 5) + f + E + W[t] + K) % 4294967296, A, uint32_lrot(B, 30), C, D
+         local temp = (uint32_lrot(a, 5) + f + e + k + w[i]) % 0x100000000
+         e = d
+         d = c
+         c = uint32_lrot(b, 30)
+         b = a
+         a = temp
       end
 
-      -- Let H0 = H0 + A, H1 = H1 + B, H2 = H2 + C, H3 = H3 + D, H4 = H4 + E.
-      H0 = (H0 + A) % 4294967296
-      H1 = (H1 + B) % 4294967296
-      H2 = (H2 + C) % 4294967296
-      H3 = (H3 + D) % 4294967296
-      H4 = (H4 + E) % 4294967296
+      -- Add this chunk's hash to result so far.
+      h0 = (h0 + a) % 0x100000000
+      h1 = (h1 + b) % 0x100000000
+      h2 = (h2 + c) % 0x100000000
+      h3 = (h3 + d) % 0x100000000
+      h4 = (h4 + e) % 0x100000000
    end
-   return format("%08x%08x%08x%08x%08x", H0, H1, H2, H3, H4)
+
+   return sformat("%08x%08x%08x%08x%08x", h0, h1, h2, h3, h4)
 end
 
-function sha1.binary(msg)
-   return hex_to_binary(sha1.sha1(msg))
+function sha1.binary(str)
+   return hex_to_binary(sha1.sha1(str))
 end
 
 -- building the lookuptables ahead of time (instead of littering the source code
@@ -159,8 +165,8 @@ end
 local xor_with_0x5c = {}
 local xor_with_0x36 = {}
 for i=0,0xff do
-   xor_with_0x5c[char(i)] = char(byte_xor(0x5c, i))
-   xor_with_0x36[char(i)] = char(byte_xor(0x36, i))
+   xor_with_0x5c[schar(i)] = schar(byte_xor(0x5c, i))
+   xor_with_0x36[schar(i)] = schar(byte_xor(0x36, i))
 end
 
 local BLOCK_SIZE = 64 -- 512 bits
@@ -173,8 +179,8 @@ function sha1.hmac(key, text)
       key = sha1.binary(key)
    end
 
-   local key_xord_with_0x36 = key:gsub('.', xor_with_0x36) .. string.rep(string.char(0x36), BLOCK_SIZE - #key)
-   local key_xord_with_0x5c = key:gsub('.', xor_with_0x5c) .. string.rep(string.char(0x5c), BLOCK_SIZE - #key)
+   local key_xord_with_0x36 = key:gsub('.', xor_with_0x36) .. srep(schar(0x36), BLOCK_SIZE - #key)
+   local key_xord_with_0x5c = key:gsub('.', xor_with_0x5c) .. srep(schar(0x5c), BLOCK_SIZE - #key)
 
    return sha1.sha1(key_xord_with_0x5c .. sha1.binary(key_xord_with_0x36 .. text))
 end
@@ -183,6 +189,6 @@ function sha1.hmac_binary(key, text)
    return hex_to_binary(sha1.hmac(key, text))
 end
 
-setmetatable(sha1, {__call = function(_,msg) return sha1.sha1(msg) end })
+setmetatable(sha1, {__call = function(_, str) return sha1.sha1(str) end})
 
 return sha1

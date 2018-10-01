@@ -1,20 +1,9 @@
+local common = require "sha1.common"
+
 local ops = {}
 
--- merge 4 bytes to an 32 bit word
-local function bytes_to_uint32(a, b, c, d)
-   return a * 0x1000000 + b * 0x10000 + c * 0x100 + d
-end
-
--- split a 32 bit word into four 8 bit numbers
-local function uint32_to_bytes(a)
-   local a4 = a % 256
-   a = (a - a4) / 256
-   local a3 = a % 256
-   a = (a - a3) / 256
-   local a2 = a % 256
-   local a1 = (a - a2) / 256
-   return a1, a2, a3, a4
-end
+local bytes_to_uint32 = common.bytes_to_uint32
+local uint32_to_bytes = common.uint32_to_bytes
 
 -- shift the bits of a 32 bit word. Don't use negative values for "bits"
 function ops.uint32_lrot(a, bits)
@@ -65,47 +54,37 @@ function ops.byte_xor(a, b)
    return byte_xor_cache[a * 256 + b]
 end
 
--- creates a function to combine to 32bit numbers using an 8bit combination function
-local function make_uint32_op_3(byte_op_cache)
-   return function(a, b, c)
-      local a1, a2, a3, a4 = uint32_to_bytes(a)
-      local b1, b2, b3, b4 = uint32_to_bytes(b)
-      local c1, c2, c3, c4 = uint32_to_bytes(c)
+function ops.uint32_xor_3(a, b, c)
+   local a1, a2, a3, a4 = uint32_to_bytes(a)
+   local b1, b2, b3, b4 = uint32_to_bytes(b)
+   local c1, c2, c3, c4 = uint32_to_bytes(c)
 
-      return bytes_to_uint32(
-         byte_op_cache[a1 * 256 + byte_op_cache[b1 * 256 + c1]],
-         byte_op_cache[a2 * 256 + byte_op_cache[b2 * 256 + c2]],
-         byte_op_cache[a3 * 256 + byte_op_cache[b3 * 256 + c3]],
-         byte_op_cache[a4 * 256 + byte_op_cache[b4 * 256 + c4]]
-      )
-   end
+   return bytes_to_uint32(
+      byte_xor_cache[a1 * 256 + byte_xor_cache[b1 * 256 + c1]],
+      byte_xor_cache[a2 * 256 + byte_xor_cache[b2 * 256 + c2]],
+      byte_xor_cache[a3 * 256 + byte_xor_cache[b3 * 256 + c3]],
+      byte_xor_cache[a4 * 256 + byte_xor_cache[b4 * 256 + c4]]
+   )
 end
 
--- creates a function to combine to 32bit numbers using an 8bit combination function
-local function make_uint32_op_4(byte_op_cache)
-   return function(a, b, c, d)
-      local a1, a2, a3, a4 = uint32_to_bytes(a)
-      local b1, b2, b3, b4 = uint32_to_bytes(b)
-      local c1, c2, c3, c4 = uint32_to_bytes(c)
-      local d1, d2, d3, d4 = uint32_to_bytes(d)
+function ops.uint32_xor_4(a, b, c, d)
+   local a1, a2, a3, a4 = uint32_to_bytes(a)
+   local b1, b2, b3, b4 = uint32_to_bytes(b)
+   local c1, c2, c3, c4 = uint32_to_bytes(c)
+   local d1, d2, d3, d4 = uint32_to_bytes(d)
 
-      return bytes_to_uint32(
-         byte_op_cache[a1 * 256 + byte_op_cache[b1 * 256 + byte_op_cache[c1 * 256 + d1]]],
-         byte_op_cache[a2 * 256 + byte_op_cache[b2 * 256 + byte_op_cache[c2 * 256 + d2]]],
-         byte_op_cache[a3 * 256 + byte_op_cache[b3 * 256 + byte_op_cache[c3 * 256 + d3]]],
-         byte_op_cache[a4 * 256 + byte_op_cache[b4 * 256 + byte_op_cache[c4 * 256 + d4]]]
-      )
-   end
+   return bytes_to_uint32(
+      byte_xor_cache[a1 * 256 + byte_xor_cache[b1 * 256 + byte_xor_cache[c1 * 256 + d1]]],
+      byte_xor_cache[a2 * 256 + byte_xor_cache[b2 * 256 + byte_xor_cache[c2 * 256 + d2]]],
+      byte_xor_cache[a3 * 256 + byte_xor_cache[b3 * 256 + byte_xor_cache[c3 * 256 + d3]]],
+      byte_xor_cache[a4 * 256 + byte_xor_cache[b4 * 256 + byte_xor_cache[c4 * 256 + d4]]]
+   )
 end
 
-ops.uint32_xor_3 = make_uint32_op_3(byte_xor_cache)
-ops.uint32_xor_4 = make_uint32_op_4(byte_xor_cache)
-
--- (B AND C) OR ((NOT B) AND D)
-function ops.loop_op_1(B, C, D)
-   local B1, B2, B3, B4 = uint32_to_bytes(B)
-   local C1, C2, C3, C4 = uint32_to_bytes(C)
-   local D1, D2, D3, D4 = uint32_to_bytes(D)
+function ops.uint32_ternary(a, b, c)
+   local B1, B2, B3, B4 = uint32_to_bytes(a)
+   local C1, C2, C3, C4 = uint32_to_bytes(b)
+   local D1, D2, D3, D4 = uint32_to_bytes(c)
 
    return bytes_to_uint32(
       byte_or_cache[byte_and_cache[C1 * 256 + B1] * 256 + byte_and_cache[D1 * 256 + 255 - B1]],
@@ -115,11 +94,10 @@ function ops.loop_op_1(B, C, D)
    )
 end
 
--- (B AND C) OR (B AND D) OR (C AND D) = (B AND (C OR D)) OR (C AND D)
-function ops.loop_op_3(B, C, D)
-   local B1, B2, B3, B4 = uint32_to_bytes(B)
-   local C1, C2, C3, C4 = uint32_to_bytes(C)
-   local D1, D2, D3, D4 = uint32_to_bytes(D)
+function ops.uint32_majority(a, b, c)
+   local B1, B2, B3, B4 = uint32_to_bytes(a)
+   local C1, C2, C3, C4 = uint32_to_bytes(b)
+   local D1, D2, D3, D4 = uint32_to_bytes(c)
 
    return bytes_to_uint32(
       byte_or_cache[byte_and_cache[B1 * 256 + byte_or_cache[C1 * 256 + D1]] * 256 + byte_and_cache[C1 * 256 + D1]],

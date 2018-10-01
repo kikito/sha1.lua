@@ -11,13 +11,12 @@ ops.byte_xor = bit32.bxor
 ops.uint32_xor_3 = bit32.bxor
 ops.uint32_xor_4 = bit32.bxor
 
--- (B AND C) OR ((NOT B) AND D)
-function ops.loop_op_1(B, C, D)
+function ops.uint32_ternary(B, C, D)
    return bor(band(B, C), band(bnot(B), D))
 end
 
--- (B AND C) OR (B AND D) OR (C AND D) = (B AND (C OR D)) OR (C AND D)
-function ops.loop_op_3(B, C, D)
+function ops.uint32_majority(B, C, D)
+   -- One less bitwise operation than (a & b) | (a & c) | (b & c).
    return bor(band(B, bor(C, D)), band(C, D))
 end
 
