@@ -18,8 +18,8 @@ build = {
    modules = {
       sha1 = "src/sha1/init.lua",
       ["sha1.bit_ops"] = "src/sha1/bit_ops.lua",
-      ["sha1.common"] = "src/sha1/common.lua",
       ["sha1.bit32_ops"] = "src/sha1/bit32_ops.lua",
+      ["sha1.common"] = "src/sha1/common.lua",
       ["sha1.lua53_ops"] = "src/sha1/lua53_ops.lua",
       ["sha1.pure_lua_ops"] = "src/sha1/pure_lua_ops.lua"
    }

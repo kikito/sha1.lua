@@ -160,21 +160,19 @@ function sha1.binary(str)
    return hex_to_binary(sha1.sha1(str))
 end
 
--- building the lookuptables ahead of time (instead of littering the source code
--- with precalculated values)
+-- Precalculate replacement tables.
 local xor_with_0x5c = {}
 local xor_with_0x36 = {}
-for i=0,0xff do
+
+for i = 0, 0xff do
    xor_with_0x5c[schar(i)] = schar(byte_xor(0x5c, i))
    xor_with_0x36[schar(i)] = schar(byte_xor(0x36, i))
 end
 
-local BLOCK_SIZE = 64 -- 512 bits
+-- 512 bits.
+local BLOCK_SIZE = 64
 
 function sha1.hmac(key, text)
-   assert(type(key)  == 'string', "key passed to sha1.hmac should be a string")
-   assert(type(text) == 'string', "text passed to sha1.hmac should be a string")
-
    if #key > BLOCK_SIZE then
       key = sha1.binary(key)
    end

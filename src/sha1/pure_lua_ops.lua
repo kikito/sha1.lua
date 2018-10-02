@@ -5,7 +5,6 @@ local ops = {}
 local bytes_to_uint32 = common.bytes_to_uint32
 local uint32_to_bytes = common.uint32_to_bytes
 
--- shift the bits of a 32 bit word. con't use negative values for "bits"
 function ops.uint32_lrot(a, bits)
    local power = 2 ^ bits
    local inv_power = 0x100000000 / power
