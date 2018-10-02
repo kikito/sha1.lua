@@ -37,6 +37,8 @@ local sha1 = {
 local function choose_ops_module()
    if _VERSION:find("5%.3") then
       return "sha1.lua53_ops"
+   elseif _VERSION:find("5%.2") then
+      return "sha1.bit32_ops"
    elseif pcall(require, "bit") then
       return "sha1.bit_ops"
    elseif pcall(require, "bit32") then
