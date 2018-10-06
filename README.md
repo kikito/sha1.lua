@@ -1,3 +1,18 @@
+Deprecated Repo
+===============
+
+I have stopped development on this library due to lack of interest and time.
+
+Peter Melnichenko has graciously taken over development. His work can be seen on here:
+
+* https://github.com/mpeterv/sha1
+
+I have also transfered my Luarocks rights for `sha1` to him, and he'll be the one publishing them
+from now on.
+
+This repo will remain on github for historical purposes.
+
+
 sha1.lua
 ========
 
